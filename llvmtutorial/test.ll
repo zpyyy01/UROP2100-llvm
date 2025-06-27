@@ -1,5 +1,5 @@
-; ModuleID = 'a.cpp'
-source_filename = "a.cpp"
+; ModuleID = 'test.cpp'
+source_filename = "test.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -30,7 +30,7 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.14 = private unnamed_addr constant [11 x i8] c"Option Two\00", align 1
 @.str.15 = private unnamed_addr constant [13 x i8] c"Option Three\00", align 1
 @.str.16 = private unnamed_addr constant [15 x i8] c"Unknown Option\00", align 1
-@llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @_GLOBAL__sub_I_a.cpp, ptr null }]
+@llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @_GLOBAL__sub_I_test.cpp, ptr null }]
 
 ; Function Attrs: noinline uwtable
 define internal void @__cxx_global_var_init() #0 section ".text.startup" {
@@ -273,7 +273,7 @@ declare noundef nonnull align 8 dereferenceable(8) ptr @_ZNSolsEPFRSoS_E(ptr nou
 declare noundef nonnull align 8 dereferenceable(8) ptr @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_(ptr noundef nonnull align 8 dereferenceable(8)) #1
 
 ; Function Attrs: noinline uwtable
-define internal void @_GLOBAL__sub_I_a.cpp() #0 section ".text.startup" {
+define internal void @_GLOBAL__sub_I_test.cpp() #0 section ".text.startup" {
   call void @__cxx_global_var_init()
   ret void
 }

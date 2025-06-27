@@ -12,7 +12,7 @@
 /// helpers to aid in analyzing, debugging, and testing passes and pass
 /// pipelines.
 ///
-//===----------------------------------------------------------------------===//
+//===-----------------------------------------------------===================//
 
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -363,6 +363,9 @@
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/UnifyLoopExits.h"
+
+#include "llvm/Transforms/Utils/FunctionCount.h"
+
 #include "llvm/Transforms/Vectorize/EVLIndVarSimplify.h"
 #include "llvm/Transforms/Vectorize/LoadStoreVectorizer.h"
 #include "llvm/Transforms/Vectorize/LoopIdiomVectorize.h"
