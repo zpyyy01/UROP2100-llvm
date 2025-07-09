@@ -4,6 +4,8 @@
 #include "llvm/IR/PassManager.h"
 #include <map>
 #include <string>
+#include <set>
+#include <stack>
 
 namespace llvm {
 

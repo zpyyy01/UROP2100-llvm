@@ -1,0 +1,10 @@
+digraph "CFG for 'test' function" {
+	label="CFG for 'test' function";
+
+	Node0x55bcb1347ce0 [shape=record,color="#b70d28ff", style=filled, fillcolor="#b70d2870" fontname="Courier",label="{entry:\l|  br i1 %cond, label %if.then, label %if.end\l|{<s0>T|<s1>F}}"];
+	Node0x55bcb1347ce0:s0 -> Node0x55bcb1347d40;
+	Node0x55bcb1347ce0:s1 -> Node0x55bcb1347e20;
+	Node0x55bcb1347d40 [shape=record,color="#3d50c3ff", style=filled, fillcolor="#be242e70" fontname="Courier",label="{if.then:\l|  br label %if.end\l}"];
+	Node0x55bcb1347d40 -> Node0x55bcb1347e20;
+	Node0x55bcb1347e20 [shape=record,color="#b70d28ff", style=filled, fillcolor="#b70d2870" fontname="Courier",label="{if.end:\l|  %x.ssa = phi i32 [ 1, %entry ], [ 2, %if.then ]\l  ret i32 %x.ssa\l}"];
+}
