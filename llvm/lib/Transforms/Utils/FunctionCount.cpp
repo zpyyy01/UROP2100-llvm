@@ -200,30 +200,170 @@ PreservedAnalyses FunctionCountPass::run(Module &M, ModuleAnalysisManager &MAM) 
     }
   }
   
-  //Rename Variables
+  
+  // Rename Variables - Second phase of SSA construction
   for (Function &F : M) {
     if (F.isDeclaration()) continue;
-
-    errs() << "\n=== Renaming Variables in " << F.getName() << " ===\n";
+    
+    errs() << "\n=== Variable Renaming for " << F.getName() << " ===\n";
+    
+    // Rebuild dominator tree for renaming phase
     DominatorTree DT(F);
-
+    
+    // Data structures for renaming
     std::map<AllocaInst*, std::stack<Value*>> var_stack;
-    std::map<AllocaInst*, int> var_count;
+    std::map<AllocaInst*, int> var_counter;
+    
+    // Collect all variables again
     std::set<AllocaInst*> variables;
-
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
         if (auto *AI = dyn_cast<AllocaInst>(&I)) {
           variables.insert(AI);
-          var_stack[AI] = std::stack<Value*>();
-          var_count[AI] = 0;
         }
       }
     }
-
     
+    // Initialize stacks and counters
+    for (AllocaInst *var : variables) {
+      var_counter[var] = 0;
+      var_stack[var] = std::stack<Value*>();
+    }
+    
+    // Helper function to rename a basic block and its dominated children
+    std::function<void(BasicBlock*)> renameBlock = [&](BasicBlock *BB) {
+      errs() << "Renaming block: " << BB->getName() << "\n";
+      
+      // Track how many variables we push in this block (for cleanup)
+      std::map<AllocaInst*, int> pushed_count;
+      for (AllocaInst *var : variables) {
+        pushed_count[var] = 0;
+      }
+      
+      // Step 1: Handle PHI nodes first
+      for (Instruction &I : *BB) {
+        if (PHINode *phi = dyn_cast<PHINode>(&I)) {
+          // Find which variable this PHI corresponds to
+          for (AllocaInst *var : variables) {
+            if (phi->getName().starts_with(var->getName())) {
+              // Create new version for this PHI
+              var_counter[var]++;
+              var_stack[var].push(phi);
+              pushed_count[var]++;
+              
+              // Rename the PHI node itself
+              phi->setName(var->getName() + "." + std::to_string(var_counter[var]));
+              
+              errs() << "  PHI renamed to: " << phi->getName() << "\n";
+              break;
+            }
+          }
+        }
+      }
+      
+      // Step 2: Process other instructions
+      for (Instruction &I : *BB) {
+        if (isa<PHINode>(&I)) continue; // Already handled
+        
+        // Handle loads (uses of variables)
+        if (LoadInst *load = dyn_cast<LoadInst>(&I)) {
+          if (AllocaInst *var = dyn_cast<AllocaInst>(load->getPointerOperand())) {
+            if (variables.count(var) && !var_stack[var].empty()) {
+              // Replace load with current version
+              Value *current_val = var_stack[var].top();
+              load->replaceAllUsesWith(current_val);
+              load->eraseFromParent();
+              errs() << "  Replaced load of " << var->getName() 
+                     << " with " << current_val->getName() << "\n";
+              continue;
+            }
+          }
+        }
+        
+        // Handle stores (definitions of variables)
+        if (StoreInst *store = dyn_cast<StoreInst>(&I)) {
+          if (AllocaInst *var = dyn_cast<AllocaInst>(store->getPointerOperand())) {
+            if (variables.count(var)) {
+              // Create new version
+              Value *stored_val = store->getValueOperand();
+              var_counter[var]++;
+              
+              // Create a new name for the stored value if it doesn't have one
+              if (stored_val->getName().empty()) {
+                stored_val->setName(var->getName() + "." + std::to_string(var_counter[var]));
+              }
+              
+              var_stack[var].push(stored_val);
+              pushed_count[var]++;
+              
+              // Remove the store instruction
+              store->eraseFromParent();
+              
+              errs() << "  Store to " << var->getName() 
+                     << " creates version " << stored_val->getName() << "\n";
+              continue;
+            }
+          }
+        }
+      }
+      
+      // Step 3: Fill in PHI node operands in successor blocks
+      for (BasicBlock *succ : successors(BB)) {
+        for (Instruction &I : *succ) {
+          if (PHINode *phi = dyn_cast<PHINode>(&I)) {
+            // Find which variable this PHI corresponds to
+            for (AllocaInst *var : variables) {
+              if (phi->getName().starts_with(var->getName())) {
+                // Find the incoming edge from BB and update it
+                for (unsigned i = 0; i < phi->getNumIncomingValues(); ++i) {
+                  if (phi->getIncomingBlock(i) == BB) {
+                    if (!var_stack[var].empty()) {
+                      Value *current_val = var_stack[var].top();
+                      phi->setIncomingValue(i, current_val);
+                      errs() << "  Updated PHI " << phi->getName() 
+                             << " incoming from " << BB->getName() 
+                             << " with " << current_val->getName() << "\n";
+                    }
+                  }
+                }
+                break;
+              }
+            }
+          } else {
+            break; // PHI nodes are always at the beginning
+          }
+        }
+      }
+      
+      // Step 4: Recursively rename dominated children
+      for (DomTreeNode *childNode : DT.getNode(BB)->children()) {
+        renameBlock(childNode->getBlock());
+      }
+      
+      // Step 5: Pop variables that were pushed in this block
+      for (AllocaInst *var : variables) {
+        for (int i = 0; i < pushed_count[var]; ++i) {
+          if (!var_stack[var].empty()) {
+            var_stack[var].pop();
+          }
+        }
+      }
+    };
+    
+    // Start renaming from the entry block
+    BasicBlock *entry = &F.getEntryBlock();
+    renameBlock(entry);
+    
+    // Clean up: remove original alloca instructions
+    for (AllocaInst *var : variables) {
+      if (var->use_empty()) {
+        var->eraseFromParent();
+        errs() << "Removed alloca for " << var->getName() << "\n";
+      }
+    }
+    
+    errs() << "=== End Variable Renaming for " << F.getName() << " ===\n";
   }
-
 
   return PreservedAnalyses::all();
 }
