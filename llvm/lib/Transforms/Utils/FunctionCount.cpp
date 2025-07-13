@@ -262,6 +262,8 @@ PreservedAnalyses FunctionCountPass::run(Module &M, ModuleAnalysisManager &MAM) 
       }
       
       // Step 2: Process other instructions
+      std::vector<Instruction*> toErase; // Collect instructions to erase later
+
       for (Instruction &I : *BB) {
         if (isa<PHINode>(&I)) continue; // Already handled
         
@@ -272,14 +274,14 @@ PreservedAnalyses FunctionCountPass::run(Module &M, ModuleAnalysisManager &MAM) 
               // Replace load with current version
               Value *current_val = var_stack[var].top();
               load->replaceAllUsesWith(current_val);
-              load->eraseFromParent();
+              toErase.push_back(load); // Mark for deletion
               errs() << "  Replaced load of " << var->getName() 
-                     << " with " << current_val->getName() << "\n";
+                    << " with " << current_val->getName() << "\n";
               continue;
             }
           }
         }
-        
+      
         // Handle stores (definitions of variables)
         if (StoreInst *store = dyn_cast<StoreInst>(&I)) {
           if (AllocaInst *var = dyn_cast<AllocaInst>(store->getPointerOperand())) {
@@ -296,16 +298,20 @@ PreservedAnalyses FunctionCountPass::run(Module &M, ModuleAnalysisManager &MAM) 
               var_stack[var].push(stored_val);
               pushed_count[var]++;
               
-              // Remove the store instruction
-              store->eraseFromParent();
+              // Mark store for deletion
+              toErase.push_back(store);
               
               errs() << "  Store to " << var->getName() 
-                     << " creates version " << stored_val->getName() << "\n";
+                    << " creates version " << stored_val->getName() << "\n";
               continue;
             }
           }
         }
       }
+      for (Instruction *inst : toErase) {
+        inst->eraseFromParent();
+      }
+
       
       // Step 3: Fill in PHI node operands in successor blocks
       for (BasicBlock *succ : successors(BB)) {
@@ -354,16 +360,23 @@ PreservedAnalyses FunctionCountPass::run(Module &M, ModuleAnalysisManager &MAM) 
     BasicBlock *entry = &F.getEntryBlock();
     renameBlock(entry);
     
-    // Clean up: remove original alloca instructions
+    //Clean up: remove original alloca instructions
+    std::vector<AllocaInst*> allocasToErase;
     for (AllocaInst *var : variables) {
       if (var->use_empty()) {
-        var->eraseFromParent();
-        errs() << "Removed alloca for " << var->getName() << "\n";
+        allocasToErase.push_back(var);
       }
+    }
+
+    // Now safely erase them
+    for (AllocaInst *var : allocasToErase) {
+      errs() << "Removed alloca for " << var->getName() << "\n";
+      var->eraseFromParent();
     }
     
     errs() << "=== End Variable Renaming for " << F.getName() << " ===\n";
   }
-
+  // Print modified module
+  M.print(errs(), nullptr);
   return PreservedAnalyses::all();
 }
